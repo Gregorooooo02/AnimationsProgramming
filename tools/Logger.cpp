@@ -1,3 +1,3 @@
 #include "Logger.h"
 
-unsigned int Logger::mLogLevel = 0;
+unsigned int Logger::mLogLevel = 1;

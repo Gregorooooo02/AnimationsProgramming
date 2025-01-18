@@ -36,8 +36,33 @@ bool Window::init(unsigned int width, unsigned int height, std::string title) {
     return false;
   }
 
+  glfwSetWindowUserPointer(mWindow, this);
+
+  glfwSetWindowCloseCallback(mWindow, [](GLFWwindow *win) {
+    auto thisWindow = static_cast<Window*>(
+      glfwGetWindowUserPointer(win));
+    thisWindow -> handleWindowCloseEvents();
+  });
+
+  glfwSetKeyCallback(mWindow, [](GLFWwindow *win, int key, int scancode, int action, int mods) {
+    auto thisWindow = static_cast<Window*>(
+      glfwGetWindowUserPointer(win));
+    thisWindow -> handleKeyEvents(key, scancode, action, mods);
+  });
+
+  glfwSetMouseButtonCallback(mWindow, [](GLFWwindow *win, int button, int action, int mods) {
+    auto thisWindow = static_cast<Window*>(
+      glfwGetWindowUserPointer(win));
+    thisWindow -> handleMouseButtonEvents(button, action, mods);
+  });
+
   Logger::log(1, "%s: Window successfully initialized\n", __FUNCTION__);
   return true;
+}
+
+void Window::handleWindowCloseEvents() {
+  Logger::log(1, "%s: Window close event... bye!\n",
+    __FUNCTION__);
 }
 
 bool Window::initVulkan() {
@@ -114,10 +139,8 @@ bool Window::initVulkan() {
 
 void Window::mainLoop() {
   while (!glfwWindowShouldClose(mWindow)) {
-
     /* poll events in a loop */
     glfwPollEvents();
-
   }
 }
 
@@ -129,4 +152,60 @@ void Window::cleanup() {
 
   glfwDestroyWindow(mWindow);
   glfwTerminate();
+}
+
+void Window::handleKeyEvents(int key, int scancode, int action, int mods) {
+  std::string actionName;
+  switch (action) {
+    case GLFW_PRESS:
+      actionName = "pressed";
+      break;
+    case GLFW_RELEASE:
+      actionName = "released";
+      break;
+    case GLFW_REPEAT:
+      actionName = "repeated";
+      break;
+    default:
+      actionName = "unknown";
+      break;
+  }
+
+  const char *keyName = glfwGetKeyName(key, 0);
+  Logger::log(1, "%s: key %s (key %i, scancode %i) %s\n",
+    __FUNCTION__, keyName, key, scancode, actionName.c_str());
+}
+
+void Window::handleMouseButtonEvents(int button, int action, int mods) {
+  std::string actionName;
+  switch (action) {
+    case GLFW_PRESS:
+      actionName = "pressed";
+      break;
+    case GLFW_RELEASE:
+      actionName = "released";
+      break;
+    default:
+      actionName = "unknown";
+      break;
+  }
+
+  std::string mouseButtonName;
+  switch (button) {
+    case GLFW_MOUSE_BUTTON_LEFT:
+      mouseButtonName = "left";
+      break;
+    case GLFW_MOUSE_BUTTON_MIDDLE:
+      mouseButtonName = "middle";
+      break;
+    case GLFW_MOUSE_BUTTON_RIGHT:
+      mouseButtonName = "right";
+      break;
+    default:
+      mouseButtonName = "unknown";
+      break;
+  }
+
+  Logger::log(1, "%s: %s mouse button (%i) %s\n",
+    __FUNCTION__, mouseButtonName.c_str(), button, actionName.c_str());
 }
