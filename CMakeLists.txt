@@ -1,38 +1,100 @@
-cmake_minimum_required(VERSION 3.30)
-project(animationProgramming)
+cmake_minimum_required(VERSION 3.19)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 
 # use custom file to find libraries
 if(WIN32)
     list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 endif()
 
-file (GLOB SOURCES
-    main.cpp
-    tools/*.cpp
-    window/*.cpp
-)
+project(animationProgramming)
 
-add_executable(animationProgramming ${SOURCES}
-        tools/Logger.cpp
-        tools/Logger.h
-        window/Window.cpp
-        window/Window.h)
+file(GLOB SOURCES
+        main.cpp
+        window/*.cpp
+        tools/*.cpp
+        vulkan/*.cpp
+        model/*.cpp
+        vkb/*.cpp
+)
+add_executable(animationProgramming ${SOURCES})
+
+target_include_directories(animationProgramming PUBLIC include window tools vulkan model vkb vma)
 
 find_package(glfw3 3.3 REQUIRED)
 find_package(Vulkan REQUIRED)
+
+# compile shaders
+file(GLOB GLSL_SOURCE_FILES
+        shader/*.frag
+        shader/*.vert
+)
+
+if(Vulkan_GLSLC_EXECUTABLE)
+    message("Using glslc to compile shaders")
+    foreach(GLSL ${GLSL_SOURCE_FILES})
+        get_filename_component(FILE_NAME ${GLSL} NAME)
+        set(SPIRV "${CMAKE_SOURCE_DIR}/shader/${FILE_NAME}.spv")
+        add_custom_command(
+                OUTPUT ${SPIRV}
+                COMMAND ${Vulkan_GLSLC_EXECUTABLE} -o ${SPIRV} ${GLSL}
+                DEPENDS ${GLSL})
+        list(APPEND SPIRV_BINARY_FILES ${SPIRV})
+    endforeach(GLSL)
+elseif (Vulkan_GLSLANG_VALIDATOR_EXECUTABLE)
+    message("Using glslangValidator to compile shaders")
+    foreach(GLSL ${GLSL_SOURCE_FILES})
+        get_filename_component(FILE_NAME ${GLSL} NAME)
+        set(SPIRV "${CMAKE_SOURCE_DIR}/shader/${FILE_NAME}.spv")
+        add_custom_command(
+                OUTPUT ${SPIRV}
+                COMMAND ${Vulkan_GLSLANG_VALIDATOR_EXECUTABLE} -V -o ${SPIRV} ${GLSL}
+                DEPENDS ${GLSL})
+        list(APPEND SPIRV_BINARY_FILES ${SPIRV})
+    endforeach(GLSL)
+endif()
+
+add_custom_target(
+        Shaders
+        DEPENDS ${SPIRV_BINARY_FILES}
+)
+add_dependencies(animationProgramming Shaders)
+
+add_custom_command(TARGET Shaders POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "$<TARGET_PROPERTY:animationProgramming,SOURCE_DIR>/shader"
+        "$<TARGET_PROPERTY:animationProgramming,BINARY_DIR>/$<CONFIGURATION>/shader"
+)
+
+# copy changed textures
+file(GLOB TEX_SOURCE_FILES
+        textures/*
+)
+
+add_custom_target(
+        Textures
+        DEPENDS ${TEX_SOURCE_FILES}
+)
+add_dependencies(animationProgramming Textures)
+
+add_custom_command(TARGET Textures POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "$<TARGET_PROPERTY:animationProgramming,SOURCE_DIR>/textures"
+        "$<TARGET_PROPERTY:animationProgramming,BINARY_DIR>/$<CONFIGURATION>/textures"
+)
 
 # variable is set by FindGLFW3.cmake, reuse for Linux
 if(UNIX)
     set(GLFW3_LIBRARY glfw)
 endif()
 
-include_directories(${GLFW3_INCLUDE_DIR} window tools)
+include_directories(${GLFW3_INCLUDE_DIR})
 
 if(MSVC)
     target_link_libraries(animationProgramming ${GLFW3_LIBRARY} Vulkan::Vulkan)
 else()
-    # Clang and GCC may need libstd++
-    target_link_libraries(animationProgramming ${GLFW3_LIBRARY} Vulkan::Vulkan stdc++)
+    # Clang and GCC may need libstd++ and libmath
+    target_link_libraries(animationProgramming ${GLFW3_LIBRARY} Vulkan::Vulkan stdc++ m)
 endif()
